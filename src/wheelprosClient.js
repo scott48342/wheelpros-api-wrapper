@@ -25,12 +25,16 @@ class WheelProsClient {
     this._tokenExpiresAtMs = 0;
     this._refreshPromise = null;
 
+    // Use browser-like User-Agent to avoid bot detection
+    const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
     this.httpAuth = axios.create({
       baseURL: this.authBaseUrl,
       timeout: 20_000,
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'User-Agent': browserUA
       }
     });
 
@@ -38,7 +42,8 @@ class WheelProsClient {
       baseURL: this.productsBaseUrl,
       timeout: 30_000,
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': browserUA
       }
     });
   }
