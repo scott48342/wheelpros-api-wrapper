@@ -16,6 +16,11 @@ class WheelProsClient {
     this.password = opts.password;
     this.tokenSkewMs = opts.tokenSkewMs ?? 60_000;
 
+    // Startup logging
+    const userRedacted = this.userName ? `${this.userName.substring(0, 3)}***` : '(empty)';
+    const passLength = this.password ? this.password.length : 0;
+    console.log(`[WheelPros Client] Initialized with user=${userRedacted}, passLen=${passLength}, authBase=${this.authBaseUrl}, productsBase=${this.productsBaseUrl}`);
+
     this._token = null;
     this._tokenExpiresAtMs = 0;
     this._refreshPromise = null;
@@ -53,23 +58,41 @@ class WheelProsClient {
     if (this._refreshPromise) return this._refreshPromise;
 
     this._refreshPromise = (async () => {
-      const res = await this.httpAuth.post('/v1/authorize', {
-        userName: this.userName,
-        password: this.password
-      });
+      // Debug logging - redact sensitive info
+      const userRedacted = this.userName ? `${this.userName.substring(0, 3)}***@***` : '(empty)';
+      const passLength = this.password ? this.password.length : 0;
+      const passPreview = this.password ? `${this.password.substring(0, 2)}***${this.password.slice(-1)}` : '(empty)';
+      console.log(`[WheelPros Auth] Attempting auth with user=${userRedacted}, passLen=${passLength}, passPreview=${passPreview}`);
+      console.log(`[WheelPros Auth] authBaseUrl=${this.authBaseUrl}`);
 
-      const data = res.data || {};
-      if (!data.accessToken) {
-        const err = new Error('WheelPros auth did not return accessToken');
-        err.details = data;
-        throw err;
+      try {
+        const res = await this.httpAuth.post('/v1/authorize', {
+          userName: this.userName,
+          password: this.password
+        });
+
+        const data = res.data || {};
+        if (!data.accessToken) {
+          const err = new Error('WheelPros auth did not return accessToken');
+          err.details = data;
+          throw err;
+        }
+
+        const expiresInSec = Number(data.expiresIn ?? 3600);
+        this._token = data.accessToken;
+        this._tokenExpiresAtMs = this._now() + (expiresInSec * 1000);
+
+        console.log(`[WheelPros Auth] SUCCESS - token expires in ${expiresInSec}s`);
+        return { accessToken: this._token, expiresIn: expiresInSec, tokenType: data.tokenType ?? 'Bearer' };
+      } catch (e) {
+        console.error(`[WheelPros Auth] FAILED`, {
+          status: e?.response?.status,
+          statusText: e?.response?.statusText,
+          data: e?.response?.data,
+          message: e?.message
+        });
+        throw e;
       }
-
-      const expiresInSec = Number(data.expiresIn ?? 3600);
-      this._token = data.accessToken;
-      this._tokenExpiresAtMs = this._now() + (expiresInSec * 1000);
-
-      return { accessToken: this._token, expiresIn: expiresInSec, tokenType: data.tokenType ?? 'Bearer' };
     })();
 
     try {
